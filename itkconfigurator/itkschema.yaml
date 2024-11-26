@@ -1,0 +1,159 @@
+itkconfigschema:
+  name: ITK Configuration Schema
+  version: 1.0
+  configuration:
+    envfiles:
+      - name: mc
+      - name: cc
+    groups:
+      - name: Organisation Settings
+        id: dfsp_details
+        description: Enter the required settings for your organisation.
+        items:
+          - name: DFSP ID
+            description: Unique identifier given to you by your Mojaloop scheme operator, sometimes also called 'FSPID' or 'FSP ID'.
+            type: string
+            max_length: 48
+            env_var:
+              file: mc
+              name: DFSP_ID
+            default: your_dfsp_id
+      - name: Scheme Settings
+        id: mojaloop_scheme_details
+        description: Enter the required settings for your Mojaloop scheme below.
+        items:
+          - name: Hub Endpoint
+            description: The fully qualified domain name or IP address and port number of the Mojaloop Hub in your scheme.
+            type: string
+            max_length: 2048
+            env_var:
+              file: mc
+              name: PEER_ENDPOINT
+            default: mojaloop.hub.net:4040
+      - name: Connection Settings
+        id: mojaloop_connector_details
+        description: Change settings of the Mojaloop Connector to suit your scenario.
+        items:
+          - name: DFSP DNS Host Names
+            description: Comma separated list of DNS hostnames the Mojaloop Connector endpoint will be exposed on.
+            type: string
+            max_length: 255
+            env_var:
+              file: mc
+              name: DFSP_DNS_HOST_NAMES
+            default: yourdomain.com
+          - name: Inbound Listen Port
+            description: The port the Mojaloop hub will make API calls to you on.
+            type: string
+            max_length: 5
+            env_var:
+              file: mc
+              name: INBOUND_LISTEN_PORT
+            default: 4000
+          - name: Outbound Listen Port
+            description: The port the Mojaloop connector will listen on for API calls from your core connector.
+            type: string
+            max_length: 5
+            env_var:
+              file: mc
+              name: OUTBOUND_LISTEN_PORT
+            default: 4001
+      - name: Connection Security Settings
+        id: security
+        description: Enter the required security details below.
+        items:
+          - name: Inbound mTLS enabled
+            description: Enable or disable authenticated, strongly encrypted connections for API requests from the hub to your systems.
+            type: bool
+            env_var:
+              file: mc
+              name: INBOUND_MUTUAL_TLS_ENABLED
+            default: false
+          - name: Inbound CA Certificate Path
+            description: Filesystem path to the inbound connection CA certificate. This is typically your CA certificate.
+            type: string
+            env_var:
+              file: mc
+              name: IN_CA_CERT_PATH
+            default: ./secrets/cacert.pem
+          - name: Inbound Server Certificate Path
+            description: Filesystem path to the inbound connection server certificate. This is typically your server certificate.
+            type: string
+            env_var:
+              file: mc
+              name: IN_SERVER_CERT_PATH
+            default: ./secrets/servercert.pem
+          - name: Inbound Server Certificate Private Key Path
+            description: Filesystem path to the inbound connection server certificate private key. This is typically your server certificate private key.
+            type: string
+            env_var:
+              file: mc
+              name: IN_SERVER_KEY_PATH
+            default: ./secrets/serverkey.pem
+          - name: Outbound mTLS enabled
+            description: Enable or disable authenticated, strongly encrypted connections for API requests from your systems to the hub.
+            type: bool
+            env_var:
+              file: mc
+              name: OUTBOUND_MUTUAL_TLS_ENABLED
+            default: false
+          - name: Outbound CA Certificate Path
+            description: Filesystem path to the inbound connection CA certificate. This is typically the hub CA certificate.
+            type: string
+            env_var:
+              file: mc
+              name: OUT_CA_CERT_PATH
+            default: ./secrets/hubcacert.pem
+          - name: Outbound Client Certificate Path
+            description: Filesystem path to the outbound connection client certificate. This is typically your client certificate, signed by the hub CA.
+            type: string
+            env_var:
+              file: mc
+              name: OUT_CLIENT_CERT_PATH
+            default: ./secrets/clientcert.pem
+          - name: Outbound Client Certificate Private Key Path
+            description: Filesystem path to the outbound connection client certificate private key. This is typically your client certificate private key.
+            type: string
+            env_var:
+              file: mc
+              name: OUT_CLIENT_KEY_PATH
+            default: ./secrets/clientkey.pem
+      - name: Non-repudiation Settings
+        id: non_repudiation
+        description: Enter the required non-repudiation details below.
+        items:
+          - name: Validate inbound JWS
+            description: Enable or disable validation of signatures on incoming API requests from the hub.
+            type: bool
+            env_var:
+              file: mc
+              name: VALIDATE_INBOUND_JWS
+            default: true
+          - name: Enable JWS Signing
+            description: Enable or disable JWS signing on outgoing messages to the hub.
+            type: bool
+            env_var:
+              file: mc
+              name: JWS_SIGN
+            default: true
+          - name: Enable JWS Signing on PUT /parties requests
+            description: Enable or disable JWS signing on outgoing PUT /parties messages to the hub.
+            type: bool
+            env_var:
+              file: mc
+              name: JWS_SIGN_PUT_PARTIES
+            default: true
+          - name: JWS Signing (private) key path
+            description: Filesystem path to the JWS signing (private) key file.
+            type: string
+            env_var:
+              file: mc
+              name: JWS_SIGNING_KEY_PATH
+            default: secrets/jwsSigningKey.pem
+          - name: JWS verification (public) key path
+            description: Filesystem path to the JWS verification (public) key file.
+            type: string
+            env_var:
+              file: mc
+              name: JWS_PUBLIC_KEY_PATH
+            default: secrets/jwsPublisKey.pem

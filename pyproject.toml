@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mojaloop-itk-configurator"
+version = "1.0.0"
+requires-python = ">=3.11"
+description = "A simple CLI utility."
+authors = [
+    { name = "James Bush", email = "jbush@mojaloop.io" }
+]
+dependencies = [
+    "build==1.2.2.post1",
+    "certifi==2024.8.30",
+    "charset-normalizer==3.4.0",
+    "docker==7.1.0",
+    "hvac==2.3.0",
+    "idna==3.10",
+    "npyscreen==4.10.5",
+    "packaging==24.2",
+    "pyproject_hooks==1.2.0",
+    "PyYAML==6.0.2",
+    "requests==2.32.3",
+    "urllib3==2.2.3",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[project.scripts]
+itkconfigurator = "itkconfigurator.main:main"
