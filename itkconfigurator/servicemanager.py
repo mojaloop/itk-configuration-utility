@@ -51,6 +51,7 @@ class ServiceManager:
 
         print('Restart complete.')
 
+
 if __name__ == "__main__":
     with ServiceManager() as serviceManager:
 
