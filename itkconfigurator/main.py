@@ -371,9 +371,9 @@ class SecurityToolsForm(ITKAppForm):
         ret = itk_run_subprocess_form(self.parentApp, 'Please wait while PKI artifacts are generated...',
                                       'Generating PKI Artifacts',
                                       [
-                                          './venv/bin/python3',
+                                          'python3',
                                           '-u',
-                                          './pkitools.py',
+                                          str(Path(__file__).resolve().parent / './pkitools.py'),
                                           'generate_client_side_mtls',
                                            dfsp_name,
                                            in_ca_cert_path,
@@ -394,9 +394,9 @@ class SecurityToolsForm(ITKAppForm):
         ret = itk_run_subprocess_form(self.parentApp, 'Please wait while a new JWS key pair is generated...',
                                       'Generating JWS Keypair',
                                       [
-                                          './venv/bin/python3',
+                                          'python3',
                                           '-u',
-                                          './pkitools.py',
+                                          str(Path(__file__).resolve().parent / 'pkitools.py'),
                                           'generate_jws_keypair',
                                           key_name,
                                           jws_signing_path,

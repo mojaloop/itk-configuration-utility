@@ -235,8 +235,11 @@ path "pki*" {
 
         # delete any existing issuer
         print('Deleting any existing issuer...')
-        issuers = self.vaultClient.secrets.pki.list_issuers()
-        delete_result = self.vaultClient.secrets.pki.delete_issuer(issuers['data']['keys'][0])
+        try:
+            issuers = self.vaultClient.secrets.pki.list_issuers()
+            delete_result = self.vaultClient.secrets.pki.delete_issuer(issuers['data']['keys'][0])
+        except Exception as e:
+            print('Error deleting existing issuer: {}'.format(e))
 
         # generate a new self-signed root certificate authority
         print('Creating new root CA issuer...')
