@@ -11,6 +11,7 @@
 #       James Bush - jbush@mojaloop.io                                   #
 ##########################################################################
 
+import sys
 import re
 import yaml
 import string
@@ -150,9 +151,21 @@ class MainForm(ITKAppForm):
 class ITKConfigurationScheme:
     def __init__(self, scheme_filename=Path(__file__).resolve().parent / 'itkschema.yaml', env_files=None):
         if env_files is None:
-            env_files = [
-                ('mc', str(Path(__file__).resolve().parent / 'example-itk.env')),
-            ]
+            # did we get passed an env file on the command line?
+            if len(sys.argv) > 1 and sys.argv[1] is not None:
+                schema_name, file_name = sys.argv[1].split('=')
+
+                if schema_name is None or file_name is None:
+                    raise Exception('First command line argument should be mc={filepath}')
+
+                env_files = [
+                    (schema_name, str(Path.cwd() / file_name)),
+                ]
+
+            else:
+                env_files = [
+                    ('mc', str(Path(__file__).resolve().parent / 'mojaloop-connector.env')),
+                ]
 
         self.schema = None
         self.forms = []

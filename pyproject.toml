@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "mojaloop-itk-configurator"
 version = "1.0.0"
 requires-python = ">=3.11"
-description = "A simple CLI utility."
+description = "A simple terminal GUI utility for configuring components of the Mojaloop Integration Toolkit."
 authors = [
     { name = "James Bush", email = "jbush@mojaloop.io" }
 ]
