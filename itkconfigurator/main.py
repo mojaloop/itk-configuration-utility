@@ -379,6 +379,8 @@ class SecurityToolsForm(ITKAppForm):
         in_ca_cert_path = self.parentApp.schema_config.get_config_item_value('security', 'Inbound CA Certificate Path')
         in_server_key_path = self.parentApp.schema_config.get_config_item_value('security', 'Inbound Server Certificate Private Key Path')
         in_server_cert_path = self.parentApp.schema_config.get_config_item_value('security', 'Inbound Server Certificate Path')
+        out_client_key_path = self.parentApp.schema_config.get_config_item_value('security', 'Outbound Client Certificate Private Key Path')
+        out_client_cert_path = self.parentApp.schema_config.get_config_item_value('security', 'Outbound Client Certificate Path')
 
         # run a subprocess to generate the artifacts
         ret = itk_run_subprocess_form(self.parentApp, 'Please wait while PKI artifacts are generated...',
@@ -392,6 +394,8 @@ class SecurityToolsForm(ITKAppForm):
                                            in_ca_cert_path,
                                            in_server_cert_path,
                                            in_server_key_path,
+                                           out_client_cert_path,
+                                           out_client_key_path,
                                            dns_names
                                       ])
 

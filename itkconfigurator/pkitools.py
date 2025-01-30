@@ -213,8 +213,8 @@ path "pki*" {
 
         result = self.vaultClient.secrets.pki.create_or_update_role(self.vault_cert_role_name, role_params)
 
-    def generate_server_cert(self, common_name, alt_names=None):
-        print('Generating server certificate...')
+    def generate_cert(self, common_name, alt_names=None):
+        print('Generating certificate for {}...'.format(common_name))
         cert_params = {
             'ttl': '4380h',
             'private_key_format': 'pem',
@@ -229,7 +229,25 @@ path "pki*" {
             extra_params=cert_params,
         )
 
-    def create_client_mtls_artefacts(self, dfsp_name, root_ca_cert_path, server_cert_path, server_cert_key_path, alt_names):
+    def generate_intermediate_cert(self, common_name, alt_names=None):
+        print('Generating private key and CSR for {}...'.format(common_name))
+        cert_params = {
+            'ttl': '4380h',
+            'private_key_format': 'pem',
+        }
+
+        if alt_names is not None:
+            cert_params['alt_names'] = alt_names
+
+        return self.vaultClient.secrets.pki.generate_intermediate(
+            type='exported',
+            common_name=common_name,
+            extra_params=cert_params,
+        )
+
+
+    def create_client_mtls_artefacts(self, dfsp_name, root_ca_cert_path, server_cert_path, server_cert_key_path,
+                                     client_cert_path, client_cert_key_path, alt_names):
         print('Generating client mTLS artifacts...')
         # always create a new root CA certificate (issuer)
 
@@ -263,17 +281,30 @@ path "pki*" {
             file.write(root_cert)
 
         # request a signed server cert
-        server_cert_data = self.generate_server_cert('{}.com'.format(dfsp_name), alt_names=alt_names)
+        server_cert_data = self.generate_cert('{}.com'.format(dfsp_name), alt_names=alt_names)
         server_cert = server_cert_data['data']['certificate']
         server_cert_key = server_cert_data['data']['private_key']
 
-        # write the cert to disk
+        # request a signed client cert
+        client_cert_data = self.generate_intermediate_cert('{}.com'.format(dfsp_name), alt_names=alt_names)
+        client_cert = client_cert_data['data']['csr']
+        client_cert_key = client_cert_data['data']['private_key']
+
+        # write the server cert to disk
         with open(server_cert_path, 'w') as file:
             file.write(server_cert)
 
-        # write the cert private key to disk
+        # write the server cert private key to disk
         with open(server_cert_key_path, 'w') as file:
             file.write(server_cert_key)
+
+        # write the client cert to disk
+        with open(client_cert_path + '.csr', 'w') as file:
+            file.write(client_cert)
+
+        # write the client cert private key to disk
+        with open(client_cert_key_path, 'w') as file:
+            file.write(client_cert_key)
 
         print('New client mTLS artifacts successfully generated and written to disk.')
 
@@ -304,11 +335,14 @@ path "pki*" {
 
 # this script can be called as a process with command line args
 if __name__ == "__main__":
-    with PkiTools() as pkiTools:
+    if sys.argv[-1] == 'debug':
+        input("hit a key after debugger attached")
 
+    with PkiTools() as pkiTools:
         match sys.argv[1]:
             case 'generate_client_side_mtls':
-                pkiTools.create_client_mtls_artefacts(sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5], sys.argv[6])
+                pkiTools.create_client_mtls_artefacts(sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5], sys.argv[6],
+                                                      sys.argv[7], sys.argv[8])
 
             case 'generate_jws_keypair':
                 pkiTools.create_jws_keypair(sys.argv[2], sys.argv[3], sys.argv[4])
