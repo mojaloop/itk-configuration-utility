@@ -362,6 +362,11 @@ class SecurityToolsForm(ITKAppForm):
                  when_pressed_function=self.generate_client_side_mTLS_artefacts)
         self.nextrely += 1  # add a space between the buttons
 
+        self.add(TVButtonPress, name='Exchange Certificates with Hub', color="BUTTON",
+                 cursor_color="BUTTON_SELECTED",
+                 when_pressed_function=self.exchange_certs_with_hub)
+        self.nextrely += 1  # add a space between the buttons
+
         self.add(TVButtonPress, name='Generate New Message Signing Key-Pair', color="BUTTON",
                  cursor_color="BUTTON_SELECTED",
                  when_pressed_function=self.generate_jws_keypair)
@@ -370,7 +375,11 @@ class SecurityToolsForm(ITKAppForm):
         self.add(TVButtonPress, name='Generate New ILP Secret', color="BUTTON",
                  cursor_color="BUTTON_SELECTED",
                  when_pressed_function=self.generate_ilp_secret)
+
         self.nextrely += 1  # add a space between the buttons
+
+    def exchange_certs_with_hub(self):
+        pass
 
     def generate_client_side_mTLS_artefacts(self):
         # find where we are configured to store PKI artifacts

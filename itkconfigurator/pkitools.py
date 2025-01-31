@@ -20,6 +20,7 @@ import hvac
 
 from docker.errors import NotFound
 from hvac.exceptions import InvalidRequest
+from mcmClient import ConnectionManagerClient
 
 
 class PkiTools:
@@ -333,6 +334,38 @@ path "pki*" {
         print('New JWS keypair successfully generated and written to disk.')
 
 
+    def upload_client_csr_to_mcm(self, mcm_url, dfsp_name, csr_path, mcm_username, mcm_password):
+        mcm_client = ConnectionManagerClient(mcm_url)
+
+        try:
+            print('Authenticating with hub MCM...')
+            mcm_client.login(mcm_username, mcm_password)
+            print('Successfully authenticated with hub MCM.')
+            print('Uploading client certificate signing request...')
+
+            with open(csr_path, "r") as file:
+                csr = file.read()
+
+            result = mcm_client.create_dfsp_inbound_enrollment(dfsp_name, {
+                'clientCSR': csr,
+            })
+
+            if result['state'] != 'CSR_LOADED':
+                print('Unexpected result state: {}'.format(result['state']))
+
+            print('MCM validation results:')
+
+            for v in result['validations']:
+                print('validationCode: {}'.format(v['validationCode']))
+                print('performed: {}'.format(v['performed']))
+                print('result: {}'.format(v['result']))
+                print('message: {}'.format(v['message']))
+                print('data: {}'.format(v['data']))
+
+        except Exception as e:
+            print('Error occurred uploading CSR to MCM: {}'.format(e))
+
+
 # this script can be called as a process with command line args
 if __name__ == "__main__":
     if sys.argv[-1] == 'debug':
@@ -346,5 +379,8 @@ if __name__ == "__main__":
 
             case 'generate_jws_keypair':
                 pkiTools.create_jws_keypair(sys.argv[2], sys.argv[3], sys.argv[4])
+
+            case 'upload_client_csr_to_mcm':
+                pkiTools.upload_client_csr_to_mcm(sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[4])
 
 

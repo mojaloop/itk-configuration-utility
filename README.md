@@ -45,3 +45,9 @@ To uninstall the project after a pip install run the following command from the 
 ```bash
 $ pip uninstall mojaloop-itk-configurator
 ```
+
+## Developing / Debugging
+
+If your development environment does not support automatically attaching to spawned python subprocesses, you can run the
+files e.g. pkitools.py independantly. Pass "debug" as the final command line arg and the process will pause to allow you
+to attach a debugger.
