@@ -151,6 +151,8 @@ class MainForm(ITKAppForm):
 class ITKConfigurationScheme:
     def __init__(self, scheme_filename=Path(__file__).resolve().parent / 'itkschema.yaml', env_files=None):
         if env_files is None:
+            env_files = []
+
             # did we get passed an env file on the command line?
             if len(sys.argv) > 1 and sys.argv[1] is not None:
                 schema_name, file_name = sys.argv[1].split('=')
@@ -158,14 +160,13 @@ class ITKConfigurationScheme:
                 if schema_name is None or file_name is None:
                     raise Exception('First command line argument should be mc={filepath}')
 
-                env_files = [
-                    (schema_name, str(Path.cwd() / file_name)),
-                ]
+                env_files.append((schema_name, str(Path.cwd() / file_name)))
 
             else:
-                env_files = [
-                    ('mc', str(Path(__file__).resolve().parent / 'mojaloop-connector.env')),
-                ]
+                env_files.append(('mc', str(Path(__file__).resolve().parent / 'mojaloop-connector.env')))
+
+        # make sure env_files always has mcm settings
+        env_files.append(('mcm', str(Path(__file__).resolve().parent / 'mcm.env')))
 
         self.schema = None
         self.forms = []
@@ -186,10 +187,10 @@ class ITKConfigurationScheme:
         """
         Parses environment files and updates env var values in the config scheme dictionary
         """
-        line_number = 0
-
         for env_filename in self.env_files:
             with open(env_filename[1], "r") as file:
+                line_number = 0
+
                 for line in file:
                     # keep track of which line in the file we are looking at
                     line_number += 1
@@ -312,7 +313,7 @@ class ITKConfigurationScheme:
 
     def update_env_file_line(self, line, var_name, new_value):
         sub_re = "(\\s*" + var_name + "=)(.*)"
-        repl_re = "\\1" + new_value
+        repl_re = "\\g<1>" + new_value
         return re.sub(sub_re, repl_re, line)
 
     def get_config_item_value(self, group_id, item_name):
@@ -362,9 +363,14 @@ class SecurityToolsForm(ITKAppForm):
                  when_pressed_function=self.generate_client_side_mTLS_artefacts)
         self.nextrely += 1  # add a space between the buttons
 
-        self.add(TVButtonPress, name='Exchange Certificates with Hub', color="BUTTON",
+        self.add(TVButtonPress, name='Request Hub Sign Client Certificate', color="BUTTON",
                  cursor_color="BUTTON_SELECTED",
-                 when_pressed_function=self.exchange_certs_with_hub)
+                 when_pressed_function=self.upload_client_cert_csr)
+        self.nextrely += 1  # add a space between the buttons
+
+        self.add(TVButtonPress, name='Download Signed Client Certificate from Hub', color="BUTTON",
+                 cursor_color="BUTTON_SELECTED",
+                 when_pressed_function=self.download_signed_client_cert)
         self.nextrely += 1  # add a space between the buttons
 
         self.add(TVButtonPress, name='Generate New Message Signing Key-Pair', color="BUTTON",
@@ -375,11 +381,56 @@ class SecurityToolsForm(ITKAppForm):
         self.add(TVButtonPress, name='Generate New ILP Secret', color="BUTTON",
                  cursor_color="BUTTON_SELECTED",
                  when_pressed_function=self.generate_ilp_secret)
-
         self.nextrely += 1  # add a space between the buttons
 
-    def exchange_certs_with_hub(self):
-        pass
+    def download_signed_client_cert(self):
+        mcm_endpoint = self.parentApp.schema_config.get_config_item_value('mcm_settings', 'MCM Endpoint')
+        dfsp_name = self.parentApp.schema_config.get_config_item_value('dfsp_details', 'DFSP ID')
+        client_cert_path = self.parentApp.schema_config.get_config_item_value('security', 'Outbound Client Certificate Path')
+        mcm_username = self.parentApp.schema_config.get_config_item_value('mcm_settings', 'MCM Username')
+        mcm_password = self.parentApp.schema_config.get_config_item_value('mcm_settings', 'MCM Password')
+        mcm_outbound_enrollment_id = self.parentApp.schema_config.get_config_item_value('mcm_settings', 'MCM Outbound Enrollment ID')
+
+        # run a subprocess to send the CSR
+        ret = itk_run_subprocess_form(self.parentApp, 'Please wait while signed client certificate is downloaded from the hub...',
+                                      'Downloading Client Certificate',
+                                      [
+                                          'python3',
+                                          '-u',
+                                          str(Path(__file__).resolve().parent / './pkitools.py'),
+                                          'download_client_cert_from_mcm',
+                                          mcm_endpoint,
+                                          dfsp_name,
+                                          client_cert_path,
+                                          mcm_username,
+                                          mcm_password,
+                                          mcm_outbound_enrollment_id,
+                                      ])
+
+    def upload_client_cert_csr(self):
+        mcm_endpoint = self.parentApp.schema_config.get_config_item_value('mcm_settings', 'MCM Endpoint')
+        dfsp_name = self.parentApp.schema_config.get_config_item_value('dfsp_details', 'DFSP ID')
+        csr_path = self.parentApp.schema_config.get_config_item_value('security', 'Outbound Client Certificate Path') + '.csr'
+        mcm_username = self.parentApp.schema_config.get_config_item_value('mcm_settings', 'MCM Username')
+        mcm_password = self.parentApp.schema_config.get_config_item_value('mcm_settings', 'MCM Password')
+
+        # run a subprocess to send the CSR
+        ret = itk_run_subprocess_form(self.parentApp, 'Please wait while CSR is uploaded to the hub...',
+                                      'Uploading Signing Request',
+                                      [
+                                          'python3',
+                                          '-u',
+                                          str(Path(__file__).resolve().parent / './pkitools.py'),
+                                          'upload_client_csr_to_mcm',
+                                          mcm_endpoint,
+                                          dfsp_name,
+                                          csr_path,
+                                          mcm_username,
+                                          mcm_password,
+                                      ])
+
+        if ret != 0:
+            pass
 
     def generate_client_side_mTLS_artefacts(self):
         # find where we are configured to store PKI artifacts

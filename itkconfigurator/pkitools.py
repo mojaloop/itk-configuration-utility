@@ -17,6 +17,7 @@ import sys
 import time
 import docker
 import hvac
+import pprint
 
 from docker.errors import NotFound
 from hvac.exceptions import InvalidRequest
@@ -34,6 +35,7 @@ class PkiTools:
     vault_root_token = None
     container_start_timeout_secs = 60
     jws_key_type = 'rsa-2048'
+    cert_key_bits = 4096
     vault_init_file = 'vaultinit.json'
     vault_url = 'http://localhost:8200'
     vault_unseal_key = None
@@ -209,7 +211,8 @@ path "pki*" {
             'allow_any_name': True,
             'allow_bare_domains': True,
             'allow_subdomains': True,
-            'max_ttl': '4380h'
+            'max_ttl': '4380h',
+            'key_bits': self.cert_key_bits,
         }
 
         result = self.vaultClient.secrets.pki.create_or_update_role(self.vault_cert_role_name, role_params)
@@ -235,6 +238,7 @@ path "pki*" {
         cert_params = {
             'ttl': '4380h',
             'private_key_format': 'pem',
+            'key_bits': self.cert_key_bits,
         }
 
         if alt_names is not None:
@@ -267,7 +271,7 @@ path "pki*" {
             common_name='{} Root CA'.format(dfsp_name),
             extra_params={
                 'issuer_name': dfsp_name,
-                'key_bits': 4096,
+                'key_bits': self.cert_key_bits,
                 'organization': dfsp_name,
                 'ttl': '8760h'
             }
@@ -309,6 +313,7 @@ path "pki*" {
 
         print('New client mTLS artifacts successfully generated and written to disk.')
 
+
     def create_jws_keypair(self, key_name, private_key_path, public_key_path):
         # Note that creating a key with the same name as an existing key will create
         # a new "version" of the key in vault.
@@ -334,8 +339,8 @@ path "pki*" {
         print('New JWS keypair successfully generated and written to disk.')
 
 
-    def upload_client_csr_to_mcm(self, mcm_url, dfsp_name, csr_path, mcm_username, mcm_password):
-        mcm_client = ConnectionManagerClient(mcm_url)
+    def upload_client_csr_to_mcm(self, mcm_endpoint, dfsp_name, csr_path, mcm_username, mcm_password):
+        mcm_client = ConnectionManagerClient(mcm_endpoint)
 
         try:
             print('Authenticating with hub MCM...')
@@ -353,6 +358,8 @@ path "pki*" {
             if result['state'] != 'CSR_LOADED':
                 print('Unexpected result state: {}'.format(result['state']))
 
+            print('Enrollment ID: {}'.format(result['id']))
+
             print('MCM validation results:')
 
             for v in result['validations']:
@@ -365,6 +372,35 @@ path "pki*" {
         except Exception as e:
             print('Error occurred uploading CSR to MCM: {}'.format(e))
 
+    def download_client_cert_from_mcm(self, mcm_endpoint, dfsp_name, client_cert_path, mcm_username, mcm_password,
+                                      enrollment_id):
+        mcm_client = ConnectionManagerClient(mcm_endpoint)
+
+        try:
+            print('Authenticating with hub MCM...')
+            mcm_client.login(mcm_username, mcm_password)
+            print('Successfully authenticated with hub MCM.')
+            print('Checking client certificate signing request for enrollment {}...'.format(enrollment_id))
+
+            result = mcm_client.get_dfsp_inbound_enrollment(dfsp_name, enrollment_id)
+
+            if result['state'] != 'CERT_SIGNED':
+                print('CSR has not been processed by hub. Please contact them to request processing. Current state: {}'
+                      .format(result['state']))
+                return
+
+            print('Writing certificate to local filesystem...')
+
+            with open(client_cert_path, "w") as file:
+                file.write(result['certificate'])
+
+            print('Certificate successfully downloaded.')
+            print('Certificate information:')
+
+            pprint.pprint(result['certInfo'])
+
+        except Exception as e:
+            print('Error downloading certificate from MCM: {}'.format(e))
 
 # this script can be called as a process with command line args
 if __name__ == "__main__":
@@ -381,6 +417,9 @@ if __name__ == "__main__":
                 pkiTools.create_jws_keypair(sys.argv[2], sys.argv[3], sys.argv[4])
 
             case 'upload_client_csr_to_mcm':
-                pkiTools.upload_client_csr_to_mcm(sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[4])
+                pkiTools.upload_client_csr_to_mcm(sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5], sys.argv[6])
 
+            case 'download_client_cert_from_mcm':
+                pkiTools.download_client_cert_from_mcm(sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5], sys.argv[6],
+                                                  sys.argv[7])
 

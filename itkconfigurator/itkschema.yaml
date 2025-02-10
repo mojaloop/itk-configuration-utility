@@ -5,6 +5,7 @@ itkconfigschema:
     envfiles:
       - name: mc
       - name: cc
+      - name: mcm
     groups:
       - name: Organisation Settings
         id: dfsp_details
@@ -157,3 +158,39 @@ itkconfigschema:
               file: mc
               name: JWS_PUBLIC_KEY_PATH
             default: secrets/jwsPublisKey.pem
+      - name: MCM Settings
+        id: mcm_settings
+        description: Enter the required settings for the hub connection management service.
+        items:
+          - name: MCM Endpoint
+            description: The connection manager endpoint exposed by the hub.
+            type: string
+            max_length: 48
+            env_var:
+              file: mcm
+              name: MCM_ENDPOINT
+            default: hub:3001
+          - name: MCM Username
+            description: The username given to you for authenticating with the hub's connection management service.
+            type: string
+            max_length: 48
+            env_var:
+              file: mcm
+              name: MCM_USERNAME
+            default: dfspuser
+          - name: MCM Password
+            description: Your password for authenticating with the hub's connection management service.
+            type: string
+            max_length: 48
+            env_var:
+              file: mcm
+              name: MCM_PASSWORD
+            default: dfsppassword
+          - name: MCM Outbound Enrollment ID
+            description: The ID of the outbound client certificate signing request sent to MCM.
+            type: string
+            max_length: 48
+            env_var:
+              file: mcm
+              name: MCM_OUTBOUND_ENROLLMENT_ID
+            default: 1

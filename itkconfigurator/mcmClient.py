@@ -26,18 +26,23 @@ class ConnectionManagerClient:
         if token:
             self.headers['Authorization'] = f'Bearer {token}'
 
-    def _request(self, method: str, endpoint: str, params: Optional[Dict] = None, json: Optional[Dict] = None):
+    def _request(self, method: str, endpoint: str, params: Optional[Dict] = None, json: Optional[Dict] = None, data: Optional[Dict] = None, headers: Optional[Dict] = None):
         """
         Internal method to make HTTP requests.
         """
         url = f"{self.base_url}{endpoint}"
-        response = requests.request(method, url, headers=self.headers, params=params, json=json)
+        headers = headers or self.headers
+        response = requests.request(method, url, headers=headers, params=params, json=json, data=data)
         response.raise_for_status()
         return response.json() if response.text else None
 
     def login(self, username: str, password: str):
         """Logs in a user and retrieves a JWT token."""
-        response = self._request('POST', '/login', json={'username': username, 'password': password})
+        headers = {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept': 'application/json',
+        }
+        response = self._request('POST', '/login', data={'username': username, 'password': password}, headers=headers)
         self.token = response.get('token', {}).get('payload', {}).get('dfspId')
         self.headers['Authorization'] = f'Bearer {self.token}'
         return response
@@ -81,6 +86,10 @@ class ConnectionManagerClient:
     def create_dfsp_inbound_enrollment(self, dfsp_id: str, enrollment_data: Dict):
         """Creates a DFSP Inbound enrollment."""
         return self._request('POST', f'/dfsps/{dfsp_id}/enrollments/inbound', json=enrollment_data)
+
+    def get_dfsp_inbound_enrollment(self, dfsp_id: str, en_id: str):
+        """Retrieves a specific DFSP Inbound enrollment."""
+        return self._request('GET', f'/dfsps/{dfsp_id}/enrollments/inbound/{en_id}')
 
 # Example usage:
 # client = ConnectionManagerClient("https://api.example.com")
