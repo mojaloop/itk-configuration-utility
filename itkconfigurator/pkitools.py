@@ -135,6 +135,7 @@ path "pki*" {
 
             self.create_client()
             self.unseal_vault()
+            self.create_app_role()
             self.enable_vault_pki()
             self.enable_vault_transit()
             return
@@ -145,6 +146,18 @@ path "pki*" {
 
         self.create_client()
         self.unseal_vault()
+
+    def create_app_role(self):
+        with open(self.vault_init_file, 'r') as file:
+            init_data = json.load(file)
+
+        if init_data['appRole'] is not None:
+            print('Vault AppRole already exists. Not creating a new one.')
+            return
+
+
+
+
 
     def unseal_vault(self):
         print('Unsealing vault...')

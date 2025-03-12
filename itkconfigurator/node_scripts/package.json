@@ -1,0 +1,16 @@
+{
+  "name": "itk-configurator-node-scripts",
+  "version": "1.0.0",
+  "description": "Node.js scripts used by the itkconfigurator tool",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "James Bush",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@mojaloop/sdk-standard-components": "github:mojaloop/sdk-standard-components",
+    "@pm4ml/mcm-client": "^3.3.1",
+    "dockerode": "^4.0.4"
+  }
+}

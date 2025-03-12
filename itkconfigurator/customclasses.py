@@ -452,20 +452,20 @@ class ITKAppForm(npyscreen.FormMultiPage):
     def ok_button_click(self):
         self.editing = False
 
-    def refresh(self):
+    def display(self, clear=False):
+        _my, _mx = self._max_physical()
+
         if self.shadow_pad is None:
             self.shadow_pad = curses.newpad(self.lines, self.columns)
             self.shadow_pad.bkgdset(' ', self.theme_manager.findPair(self, 'FORMSHADOW'))
-
-        _my, _mx = self._max_physical()
-        self.shadow_pad.move(1, 1)
+            self.shadow_pad.move(1, 1)
 
         try:
             self.shadow_pad.refresh(self.show_from_y, self.show_from_x, self.show_aty + 1, self.show_atx + 1, _my, _mx)
         except curses.error:
             pass
 
-        super().refresh()
+        super().display(clear=clear)
 
     def draw_title_and_help(self):
         try:
