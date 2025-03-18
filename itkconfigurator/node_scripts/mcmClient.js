@@ -1,5 +1,5 @@
 /*************************************************************************
- *  (C) Copyright Mojaloop Foundation. 2024 - All rights reserved.        *
+ *  (C) Copyright Mojaloop Foundation. 2025 - All rights reserved.        *
  *                                                                        *
  *  This file is made available under the terms of the license agreement  *
  *  specified in the corresponding source code repository.                *
@@ -13,14 +13,42 @@
 
 const fs = require('fs').promises;
 const util = require('util');
-const { Vault, ConnectionStateMachine } = require('@pm4ml/mcm-client');
 const { Logger } = require('@mojaloop/sdk-standard-components');
 const Docker = require('dockerode');
+const {
+    AuthModel,
+    DFSPCertificateModel,
+    DFSPEndpointModel,
+    HubCertificateModel,
+    HubEndpointModel,
+    Vault,
+    ConnectionStateMachine,
+    ControlServer,
+} = require('@pm4ml/mcm-client');
+
+
+const vaultPolicy = `
+path "sys/mounts/*" {
+    capabilities = ["create", "read", "update", "delete", "list"]
+}
+
+path "sys/mounts" {
+    capabilities = ["read", "list"]
+},
+
+path "pki*" {
+    capabilities = ["create", "read", "update", "delete", "list", "sudo", "patch"]
+},
+
+path "kvenginemountpoint*" {
+    capabilities = ["create", "read", "update", "delete", "list", "sudo", "patch"]
+}`;
 
 const constants = {
     vaultImageName: 'hashicorp/vault',
     containerStartTimeoutSecs: 60,
     vaultInitFile: 'vaultinit.json',
+    vaultPolicy,
 }
 
 
@@ -30,13 +58,15 @@ const constants = {
  * hub side "Mojaloop Connection Manager" (MCM) server.
  */
 class VaultDocker {
-    constructor({ containerName, logger, vaultClient, vaultInitFileName }) {
+    constructor({ containerName, logger, vaultClient, vaultInitFileName, mounts, pkiRoles }) {
         this.constants = constants;
 
         this.containerName = containerName;
         this.logger = logger;
         this.vaultClient = vaultClient;
         this.vaultInitFileName = vaultInitFileName;
+        this.mounts = mounts;
+        this.pkiRoles = pkiRoles;
 
         this.docker = new Docker();
     }
@@ -51,7 +81,7 @@ class VaultDocker {
         });
 
         const vaultContainerInfo = containers
-            .find(c => c.Names.includes(this.constants.vaultContainerName));
+            .find(c => c.Names.includes(this.containerName));
 
         if (!vaultContainerInfo) {
             // we need to create the container
@@ -140,10 +170,21 @@ class VaultDocker {
 
             await this.unsealVault();
 
+            //await this.vaultClient.mountAll();
+
+            // update our default policy
+            const defaultPolicy = await this.getVaultPolicy('default');
+            const newPolicy = `${defaultPolicy.rules}\n${constants.vaultPolicy
+                .replaceAll('kvenginemountpoint', this.mounts.kv)}`;
+            await this.updateVaultPolicy('default', newPolicy);
+
             // create an appRole and store the role-id and secret-id
             await this.enableAppRoleAuth();
             this.vaultInitFile.appRole = await this.createAppRole();
             await this.tryWriteVaultInitFile(this.vaultInitFileName, this.vaultInitFile);
+
+            await this.vaultClient.mountAll(this.vaultInitFile.root_token);
+            await this.createPkiRoles(this.pkiRoles)
 
             return this.vaultInitFile;
         }
@@ -158,6 +199,27 @@ class VaultDocker {
         // we get here if the vault is already initialized. just unseal.
         await this.unsealVault();
         return this.vaultInitFile;
+    }
+
+    async createPkiRoles(roles) {
+        return Promise.all(roles.map(r => {
+            return this.vaultClient.createPkiRole(this.vaultInitFile.root_token, r, {
+                allowed_domains: '*',
+                allow_any_name: true,
+                allow_bare_domains: true,
+                allow_subdomains: true,
+                max_ttl: '60h',
+                key_bits: 4096,
+            })
+        }));
+    }
+
+    async getVaultPolicy(policyName) {
+        return this.vaultClient.getPolicy(this.vaultInitFile.root_token, policyName);
+    }
+
+    async updateVaultPolicy(policyName, policy) {
+        return this.vaultClient.updatePolicy(this.vaultInitFile.root_token, policyName, policy);
     }
 
     async enableAppRoleAuth() {
@@ -182,6 +244,7 @@ class VaultDocker {
                 token_type: 'service',
                 token_ttl: '10m',
                 token_max_ttl: '15m',
+                token_policies: 'default',
             });
 
             this.logger.debug(`Created vault app role: ${util.inspect(res)}`);
@@ -235,6 +298,8 @@ class McmClientManager {
             vaultClient: this.vault,
             containerName: this.config.vaultContainerName,
             vaultInitFileName: this.config.initFileName,
+            mounts: this.config.vault.mounts,
+            pkiRoles: [this.config.vault.pkiServerRole, this.config.vault.pkiClientRole],
         });
 
         await this.vaultDocker.startVaultContainer();
@@ -243,8 +308,8 @@ class McmClientManager {
 
         this.vault.setAuth({
             appRole:{
-                roleId: vaultInitFile.appRole.role_id,
-                roleSecretId: vaultInitFile.appRole.secret_id
+                roleId: vaultInitFile.appRole?.role_id,
+                roleSecretId: vaultInitFile.appRole?.secret_id
             },
         });
         await this.vault.connect();
@@ -252,22 +317,99 @@ class McmClientManager {
         this.logger.debug('Connected to vault.')
     }
 
+    disconnect() {
+        this.logger.debug('Disconnecting from vault...');
+        this.vault.disconnect();
+        this.stateMachine.stop();
+        this.logger.debug('Disconnected.');
+    }
+
     async startStateMachine() {
-        const stateMachine = new ConnectionStateMachine({
-            dfspId: config.dfspId,
-            hubEndpoint: config.mcmServerEndpoint,
-            dfspCertificateModel: new DFSPCertificateModel(opts),
-            hubCertificateModel: new HubCertificateModel(opts),
-            hubEndpointModel: new HubEndpointModel(opts),
-            dfspEndpointModel: new DFSPEndpointModel(opts),
+        const modelOpts = {
+            dfspId: this.config.dfspId,
+            hubEndpoint: this.config.mcmServerEndpoint,
+            logger: this.logger,
+            hubIamProviderUrl: this.config.hubIamProviderUrl,
+            auth: this.config.auth,
+            oidcScope: this.config.oidcScope,
+        };
+
+        // login to MCM server
+        const authModel = new AuthModel({
+            logger: this.logger,
+            auth: this.config.auth,
+            hubIamProviderUrl: this.config.hubIamProviderUrl,
+            oidcTokenRoute: this.config.oidcTokenRoute,
+        });
+
+        try {
+            await authModel.login();
+        } catch (err) {
+            this.logger.error(`Error logging in to MCM server: ${util.inspect(err)}`);
+            throw err;
+        }
+
+        this.stateMachine = new ConnectionStateMachine({
+            dfspId: this.config.dfspId,
+            refreshIntervalSeconds: 5,
+            hubEndpoint: this.config.mcmServerEndpoint,
+            dfspCertificateModel: new DFSPCertificateModel(modelOpts),
+            hubCertificateModel: new HubCertificateModel(modelOpts),
+            hubEndpointModel: new HubEndpointModel(modelOpts),
+            dfspEndpointModel: new DFSPEndpointModel(modelOpts),
             port: this.config.stateMachineDebugPort,
             logger: this.logger,
             vault: this.vault,
             certManager: undefined,
-            ControlServer: undefined,
+            ControlServer,
+            config: {
+                stateMachineDebugPort: this.config.stateMachineDebugPort,
+                stateMachineInspectEnabled: true,
+                whitelistIP: ['1.2.3.4'],
+                callbackURL: 'connector.testdfsp.com:443',
+                dfspServerCsrParameters: {
+                    subject: {
+                        CN: 'testdfsp.com',
+                        OU: '',
+                        O: '',
+                        L: '',
+                        C: '',
+                        ST: '',
+                    },
+                    extensions: {
+                        subjectAltName: {
+                            dns: [],
+                            ips: [],
+                        },
+                    },
+                },
+            },
         });
 
-        await stateMachine.start();
+        this.stateMachine.start();
+    }
+
+    async onboardDfsp() {
+        const prom = new Promise(resolve => {
+            const sub = this.stateMachine.service.subscribe({
+                next(snapshot) {
+                    //console.log(`Statemachine snapshot: ${util.inspect(snapshot, { depth: 5 })}`);
+                    console.log(`Statemachine snapshot: ${new Date().toISOString()}: ${util.inspect(snapshot.value)}`);
+                },
+                error(err) {
+                    console.log(`Statemachine error: ${util.inspect(err, { depth: 5 })}`);
+                    resolve();
+                },
+                complete() {
+                    console.log('Statemachine complete');
+                    resolve();
+                }
+            });
+        });
+
+        this.stateMachine.sendEvent({type: 'CREATE_INT_CA', subject: this.config.dfspId});
+
+        await prom;
     }
 }
 

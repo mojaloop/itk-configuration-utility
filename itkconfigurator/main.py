@@ -441,22 +441,39 @@ class SecurityToolsForm(ITKAppForm):
         in_server_cert_path = self.parentApp.schema_config.get_config_item_value('security', 'Inbound Server Certificate Path')
         out_client_key_path = self.parentApp.schema_config.get_config_item_value('security', 'Outbound Client Certificate Private Key Path')
         out_client_cert_path = self.parentApp.schema_config.get_config_item_value('security', 'Outbound Client Certificate Path')
+        mcm_endpoint = self.parentApp.schema_config.get_config_item_value('mcm_settings', 'MCM Endpoint')
 
         # run a subprocess to generate the artifacts
+        # ret = itk_run_subprocess_form(self.parentApp, 'Please wait while PKI artifacts are generated...',
+        #                               'Generating PKI Artifacts',
+        #                               [
+        #                                   'python3',
+        #                                   '-u',
+        #                                   str(Path(__file__).resolve().parent / './pkitools.py'),
+        #                                   'generate_client_side_mtls',
+        #                                    dfsp_name,
+        #                                    in_ca_cert_path,
+        #                                    in_server_cert_path,
+        #                                    in_server_key_path,
+        #                                    out_client_cert_path,
+        #                                    out_client_key_path,
+        #                                    dns_names
+        #                               ])
+
         ret = itk_run_subprocess_form(self.parentApp, 'Please wait while PKI artifacts are generated...',
                                       'Generating PKI Artifacts',
                                       [
-                                          'python3',
-                                          '-u',
-                                          str(Path(__file__).resolve().parent / './pkitools.py'),
+                                          'node',
+                                          str(Path(__file__).resolve().parent / './node_scripts/index.js'),
                                           'generate_client_side_mtls',
-                                           dfsp_name,
-                                           in_ca_cert_path,
-                                           in_server_cert_path,
-                                           in_server_key_path,
-                                           out_client_cert_path,
-                                           out_client_key_path,
-                                           dns_names
+                                          dfsp_name,
+                                          in_ca_cert_path,
+                                          in_server_cert_path,
+                                          in_server_key_path,
+                                          out_client_cert_path,
+                                          out_client_key_path,
+                                          dns_names,
+                                          mcm_endpoint,
                                       ])
 
         if ret != 0:
